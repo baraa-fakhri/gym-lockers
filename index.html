@@ -19,18 +19,18 @@
     --transition: .18s ease;
   }
 
-  /* ثيم الرجال (افتراضي) - رمادي فحمي + أزرق فولاذي + نحاسي */
+  /* ثيم الرجال (افتراضي) - أسود + كروم فضي (متل اللوغو) + أحمر جريء */
   body.theme-male{
-    --bg: #1B1F23;
-    --surface: #22262B;
-    --surface-2: #2A2F35;
-    --text: #ECEEF0;
-    --text-muted: #9AA3AC;
-    --accent: #4E8CA6;
-    --accent-text: #0B1416;
-    --accent-2: #C9A227;
-    --danger: #C15B4A;
-    --border: #33393F;
+    --bg: #131417;
+    --surface: #1D2023;
+    --surface-2: #262A2E;
+    --text: #EEEFF1;
+    --text-muted: #93989F;
+    --accent: #B23A3A;
+    --accent-text: #FFF6F5;
+    --accent-2: #ADB4BA;
+    --danger: #D98B3F;
+    --border: #2E3237;
     --good: #4F9D6E;
   }
 
@@ -207,6 +207,23 @@
     margin-bottom:14px;
   }
 
+  .locker-toggle{ display:flex; gap:8px; margin-bottom:16px; }
+  .toggle-btn{
+    flex:1;
+    padding:10px;
+    border-radius:var(--radius);
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--text-muted);
+    font-weight:700;
+    font-size:13px;
+  }
+  .toggle-btn.active{
+    background:var(--accent);
+    color:var(--accent-text);
+    border-color:var(--accent);
+  }
+
   .locker-grid{
     display:grid;
     grid-template-columns:repeat(auto-fill, minmax(54px,1fr));
@@ -350,7 +367,12 @@
           <h2>تسجيل لاعب جديد</h2>
           <label for="nameInput">اسم اللاعب</label>
           <input type="text" id="nameInput" placeholder="اكتب الاسم هون">
-          <label>اختر رقم الخزانة (المقترح محدد تلقائيًا)</label>
+          <label>هل بياخد خزانة؟</label>
+          <div class="locker-toggle">
+            <button type="button" class="toggle-btn active" id="wantsLockerYes">مع خزانة</button>
+            <button type="button" class="toggle-btn" id="wantsLockerNo">بدون خزانة</button>
+          </div>
+          <label id="lockerLabel">اختر رقم الخزانة (المقترح محدد تلقائيًا)</label>
           <div class="locker-grid" id="lockerGrid"></div>
           <button class="btn-full" id="checkinBtn" disabled>سجّل الدخول</button>
         </div>
@@ -429,6 +451,21 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let settings = null;
 let members = [];
 let selectedLocker = null;
+let wantsLocker = true;
+
+function updateLockerMode(){
+  document.getElementById('wantsLockerYes').classList.toggle('active', wantsLocker);
+  document.getElementById('wantsLockerNo').classList.toggle('active', !wantsLocker);
+  document.getElementById('lockerGrid').style.display = wantsLocker ? 'grid' : 'none';
+  document.getElementById('lockerLabel').style.display = wantsLocker ? 'block' : 'none';
+  if(wantsLocker){ renderLockerGrid(); } else { updateCheckinBtn(); }
+}
+document.getElementById('wantsLockerYes').addEventListener('click', ()=>{
+  wantsLocker = true; updateLockerMode();
+});
+document.getElementById('wantsLockerNo').addEventListener('click', ()=>{
+  wantsLocker = false; selectedLocker = null; updateLockerMode();
+});
 let currentPeriod = 'closed';
 
 // ---------------- أدوات مساعدة ----------------
@@ -463,7 +500,7 @@ function applyTheme(){
 
 function tickClock(){
   const now = new Date();
-  document.getElementById('clockLabel').textContent = now.toLocaleTimeString('ar-SY', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('clockLabel').textContent = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
   if(settings){
     const p = computePeriod(now);
     if(p !== currentPeriod){
@@ -569,20 +606,24 @@ function renderLockerGrid(){
 
 function updateCheckinBtn(){
   const name = document.getElementById('nameInput').value.trim();
-  document.getElementById('checkinBtn').disabled = !(name && selectedLocker);
+  const ok = wantsLocker ? (name && selectedLocker) : name;
+  document.getElementById('checkinBtn').disabled = !ok;
 }
 document.getElementById('nameInput').addEventListener('input', updateCheckinBtn);
 
 document.getElementById('checkinBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('nameInput').value.trim();
-  if(!name || !selectedLocker) return;
+  if(!name) return;
+  if(wantsLocker && !selectedLocker) return;
   const period = currentPeriod === 'closed' ? 'male' : currentPeriod;
   const { error } = await sb.from('members').insert({
-    name, locker_number: selectedLocker, period, status:'active'
+    name, locker_number: wantsLocker ? selectedLocker : null, period, status:'active'
   });
   if(error){ showToast('خطأ: '+error.message); return; }
   document.getElementById('nameInput').value = '';
   selectedLocker = null;
+  wantsLocker = true;
+  updateLockerMode();
   showToast('تم تسجيل الدخول ✓');
   await loadMembers();
 });
@@ -601,7 +642,7 @@ function renderActiveList(){
     row.className = 'row-item';
     row.innerHTML = `
       <div>
-        <div class="row-name">${escapeHtml(m.name)}<span class="locker-tag">${m.locker_number}</span>${isNeedsReview(m.check_in_at)?'<span class="badge-review">يحتاج مراجعة</span>':''}</div>
+        <div class="row-name">${escapeHtml(m.name)}${m.locker_number?`<span class="locker-tag">${m.locker_number}</span>`:''}${isNeedsReview(m.check_in_at)?'<span class="badge-review">يحتاج مراجعة</span>':''}</div>
         <div class="row-sub">${elapsedLabel(m.check_in_at)}</div>
       </div>
       <button class="btn-checkout" data-id="${m.id}">تسجيل خروج</button>
@@ -640,8 +681,8 @@ function renderArchiveList(){
     const outD = m.check_out_at ? new Date(m.check_out_at) : null;
     row.innerHTML = `
       <div>
-        <div class="row-name">${escapeHtml(m.name)}<span class="locker-tag">${m.locker_number}</span></div>
-        <div class="row-sub">${inD.toLocaleDateString('ar-SY')} — دخول ${inD.toLocaleTimeString('ar-SY',{hour:'2-digit',minute:'2-digit'})}${outD?(' / خروج '+outD.toLocaleTimeString('ar-SY',{hour:'2-digit',minute:'2-digit'})):''}</div>
+        <div class="row-name">${escapeHtml(m.name)}${m.locker_number?`<span class="locker-tag">${m.locker_number}</span>`:''}</div>
+        <div class="row-sub">${inD.toLocaleDateString('en-GB')} — دخول ${inD.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}${outD?(' / خروج '+outD.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})):''}</div>
       </div>
     `;
     wrap.appendChild(row);
@@ -683,7 +724,7 @@ async function startApp(){
   document.getElementById('app').style.display = 'block';
   await loadSettings();
   await loadMembers();
-  setInterval(tickClock, 15000);
+  setInterval(tickClock, 1000);
   tickClock();
 
   // تزامن لحظي بين كل الأجهزة
