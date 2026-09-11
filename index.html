@@ -436,6 +436,16 @@
       <!-- الإعدادات -->
       <section class="tab-panel" id="tab-settings">
         <div class="card">
+          <h2>معاينة الألوان (للتجربة فقط)</h2>
+          <p class="muted-hint" style="margin-top:0;">هاي بس لتشوف شكل كل ثيم فورًا بدون ما تستنى وقته الفعلي. ما بتأثر على الإعدادات الحقيقية.</p>
+          <div class="locker-toggle" style="flex-wrap:wrap;">
+            <button type="button" class="toggle-btn preview-btn active" data-preview="">تلقائي (الوقت الفعلي)</button>
+            <button type="button" class="toggle-btn preview-btn" data-preview="female">فترة النساء</button>
+            <button type="button" class="toggle-btn preview-btn" data-preview="male">فترة الرجال</button>
+          </div>
+        </div>
+
+        <div class="card">
           <h2>اسم النادي</h2>
           <input type="text" id="settingClubName">
         </div>
@@ -533,18 +543,32 @@ function computePeriod(now){
   return 'closed';
 }
 
+let forcedPeriod = null;
+
 function applyTheme(){
   document.body.classList.remove('theme-male','theme-female','theme-closed');
   document.body.classList.add('theme-'+currentPeriod);
   const badge = document.getElementById('periodBadge');
-  badge.textContent = currentPeriod==='female' ? 'فترة النساء' : currentPeriod==='male' ? 'فترة الرجال' : 'الصالة مسكرة حاليًا';
+  const previewNote = forcedPeriod ? ' (معاينة)' : '';
+  badge.textContent = (currentPeriod==='female' ? 'فترة النساء' : currentPeriod==='male' ? 'فترة الرجال' : 'الصالة مسكرة حاليًا') + previewNote;
 }
+
+document.querySelectorAll('.preview-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.preview-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    forcedPeriod = btn.dataset.preview || null;
+    if(!settings) return;
+    currentPeriod = forcedPeriod || computePeriod(new Date());
+    applyTheme();
+  });
+});
 
 function tickClock(){
   const now = new Date();
   document.getElementById('clockLabel').textContent = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
   if(settings){
-    const p = computePeriod(now);
+    const p = forcedPeriod || computePeriod(now);
     if(p !== currentPeriod){
       currentPeriod = p;
       applyTheme();
@@ -579,7 +603,7 @@ async function loadSettings(){
   document.getElementById('maleEnd').value = settings.male_end.slice(0,5);
   document.getElementById('lockerCount').value = settings.locker_count;
   document.getElementById('reviewHours').value = settings.review_hours;
-  currentPeriod = computePeriod(new Date());
+  currentPeriod = forcedPeriod || computePeriod(new Date());
   applyTheme();
 }
 
